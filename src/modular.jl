@@ -89,7 +89,8 @@ function POMDPToolbox.action_info(p::ModularPlanner, s; tree_in_info=false)
     return a, info
 end
 
-#sim_hash(x) = 
+#default to never match, user can override to activate feature
+sim_hash(x) = NaN 
 
 """
 Return the reward for one iteration of Modular MCTS.
@@ -107,30 +108,34 @@ function simulate(p::ModularPlanner, snode::Int, d::Int, best_path::Nullable{Bes
     a, isnew = bandit_action(p, p.solver.bandit, snode)
 
     # deterministic transition 
-    new_node = false
     sp, r = generate_sr(p.mdp, s, a, p.rng)
     !isnull(best_path) && update!(get(best_path), s, a, r)
 
-    #= #Experimental!! Potentially dangerous =#
-    #= # check universally for simhash matches over all nodes =#
-    #= i = findfirst(s->sim_hash(s)==sim_hash(sp), tree.s_labels) =#
-    #= if i > 0 =#
-    #=     j = findfirst(x->last(x)==i, tree.unique_transitions) =#
-    #=     if j > 0 =#
-    #=         #recover the transition =#
-    #=         sanode = j =#
-    #=         a = tree.a_labels[sanode] =#
-    #=         spnode, r = tree.transitions[sanode] =#
-    #=         sp = tree.s_labels[spnode] =#
-    #=     end =#
-    #= end =#
+    ###
+    #Experimental!! Potentially dangerous
+    # check universally for simhash matches over all nodes
+    i = findfirst(s->sim_hash(s)==sim_hash(sp), tree.s_labels)
+    if i > 0
+        tup = find_first_element(x->last(x)==i, tree.unique_transitions)
+        if tup != nothing 
+            #recover the transition
+            sanode = first(tup) 
+            a = tree.a_labels[sanode]
+            spnode, r = tree.transitions[sanode][1]
+            sp = tree.s_labels[spnode]
+            isnew = false
+        end
+    end
+    ####
 
     if isnew && !haskey(tree.a_lookup, (snode, a))
         n0 = init_N(sol.init_N, p.mdp, s, a)
-        insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, p.mdp, s, a), b.check_repeat_action)
+        insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, p.mdp, s, a), p.solver.bandit.check_repeat_action)
         tree.total_n[snode] += n0
     end
+    sanode = tree.a_lookup[(snode,a)] 
 
+    new_node = false
     spnode = sol.check_repeat_state ? get(tree.s_lookup, sp, 0) : 0
     if spnode == 0 # there was not a state node for sp already in the tree
         spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
@@ -157,4 +162,11 @@ function simulate(p::ModularPlanner, snode::Int, d::Int, best_path::Nullable{Bes
     bandit_update!(p, p.solver.bandit, snode, sanode, r, q)
 
     return q
+end
+
+function find_first_element(f::Function, v)
+    for x in v
+        f(x) && return x
+    end
+    return nothing
 end
