@@ -89,6 +89,7 @@ function POMDPToolbox.action_info(p::ModularPlanner, s; tree_in_info=false)
     return a, info
 end
 
+#sim_hash(x) = 
 
 """
 Return the reward for one iteration of Modular MCTS.
@@ -103,31 +104,45 @@ function simulate(p::ModularPlanner, snode::Int, d::Int, best_path::Nullable{Bes
         return 0.0
     end
 
-    sanode = bandit_action(p, p.solver.bandit, snode)
-    a = tree.a_labels[sanode]
+    a, isnew = bandit_action(p, p.solver.bandit, snode)
 
-    # state progressive widening
+    # deterministic transition 
     new_node = false
-    if tree.n_a_children[sanode] <= sol.k_state*tree.n[sanode]^sol.alpha_state
-        sp, r = generate_sr(p.mdp, s, a, p.rng)
-        !isnull(best_path) && update!(get(best_path), s, a, r)
+    sp, r = generate_sr(p.mdp, s, a, p.rng)
+    !isnull(best_path) && update!(get(best_path), s, a, r)
 
-        spnode = sol.check_repeat_state ? get(tree.s_lookup, sp, 0) : 0
+    #= #Experimental!! Potentially dangerous =#
+    #= # check universally for simhash matches over all nodes =#
+    #= i = findfirst(s->sim_hash(s)==sim_hash(sp), tree.s_labels) =#
+    #= if i > 0 =#
+    #=     j = findfirst(x->last(x)==i, tree.unique_transitions) =#
+    #=     if j > 0 =#
+    #=         #recover the transition =#
+    #=         sanode = j =#
+    #=         a = tree.a_labels[sanode] =#
+    #=         spnode, r = tree.transitions[sanode] =#
+    #=         sp = tree.s_labels[spnode] =#
+    #=     end =#
+    #= end =#
 
-        if spnode == 0 # there was not a state node for sp already in the tree
-            spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
-            new_node = true
-        end
+    if isnew && !haskey(tree.a_lookup, (snode, a))
+        n0 = init_N(sol.init_N, p.mdp, s, a)
+        insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, p.mdp, s, a), b.check_repeat_action)
+        tree.total_n[snode] += n0
+    end
+
+    spnode = sol.check_repeat_state ? get(tree.s_lookup, sp, 0) : 0
+    if spnode == 0 # there was not a state node for sp already in the tree
+        spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
         push!(tree.transitions[sanode], (spnode, r))
+        new_node = true
+    end
 
-        if !sol.check_repeat_state 
-            tree.n_a_children[sanode] += 1
-        elseif !((sanode,spnode) in tree.unique_transitions)
-            push!(tree.unique_transitions, (sanode,spnode))
-            tree.n_a_children[sanode] += 1
-        end
-    else
-        spnode, r = rand(p.rng, tree.transitions[sanode])
+    if !sol.check_repeat_state 
+        tree.n_a_children[sanode] += 1
+    elseif !((sanode,spnode) in tree.unique_transitions)
+        push!(tree.unique_transitions, (sanode,spnode))
+        tree.n_a_children[sanode] += 1
     end
 
     if new_node

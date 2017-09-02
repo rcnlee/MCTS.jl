@@ -90,8 +90,6 @@ mutable struct ModularSolver <: AbstractMCTSSolver
     n_iterations::Int
     max_time::Float64
     bandit::ModularBandit
-    k_state::Float64
-    alpha_state::Float64
     keep_tree::Bool
     check_repeat_state::Bool
     tree_in_info::Bool
@@ -113,8 +111,6 @@ function ModularSolver(;depth::Int=10,
                     n_iterations::Int=100,
                     max_time::Float64=Inf,
                     bandit::ModularBandit=DPWBandit(),
-                    k_state::Float64=10.0,
-                    alpha_state::Float64=0.5,
                     keep_tree::Bool=false,
                     check_repeat_state::Bool=true,
                     tree_in_info::Bool=false,
@@ -126,7 +122,7 @@ function ModularSolver(;depth::Int=10,
                     default_action::Any=ExceptionRethrow(),
                     track_best_path::Bool=false
                    )
-    ModularSolver(depth, n_iterations, max_time, bandit, k_state, alpha_state, keep_tree, check_repeat_state, tree_in_info, rng, estimate_value, init_Q, init_N, next_action, default_action, track_best_path)
+    ModularSolver(depth, n_iterations, max_time, bandit, keep_tree, check_repeat_state, tree_in_info, rng, estimate_value, init_Q, init_N, next_action, default_action, track_best_path)
 end
 
 mutable struct ModularTree{S,A}

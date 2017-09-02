@@ -166,7 +166,7 @@ function D3Trees.D3Tree(nodes::Vector{Dict{String, Any}}; title="Julia D3Tree", 
                  )
 end
 
-function D3Trees.D3Tree(tree::DPWTree; title="MCTS-DPW Tree", kwargs...)
+function D3Trees.D3Tree(tree::Union{DPWTree,ModularTree}; title="MCTS-DPW Tree", kwargs...)
     lens = length(tree.total_n)
     lensa = length(tree.n)
     len = lens + lensa
@@ -188,6 +188,7 @@ function D3Trees.D3Tree(tree::DPWTree; title="MCTS-DPW Tree", kwargs...)
                             tree.total_n[s]
                            )
         tt[s] = """
+                snode: $s 
                 $(tooltip_tag(tree.s_labels[s]))
                 N: $(tree.total_n[s])
                 """
@@ -197,7 +198,8 @@ function D3Trees.D3Tree(tree::DPWTree; title="MCTS-DPW Tree", kwargs...)
         end
     end
     for sa in 1:lensa
-        children[sa+lens] = collect(first(t) for t in tree.transitions[sa])
+        sa_trans = filter(t->first(t)==sa, tree.unique_transitions)
+        children[sa+lens] = collect(last(t) for t in sa_trans)
         text[sa+lens] = @sprintf("""
                                  %25s
                                  Q: %6.2f

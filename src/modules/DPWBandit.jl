@@ -37,33 +37,31 @@ function bandit_action(p::ModularPlanner, b::DPWBandit, snode)
     # action progressive widening
     if n ≤ k*N^α  # criterion for new action generation
         a = next_action(p.next_action, p.mdp, s, ModularStateNode(tree, snode)) # action generation step
-        if !b.check_repeat_action || !haskey(tree.a_lookup, (snode, a))
-            n0 = init_N(sol.init_N, p.mdp, s, a)
-            insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, p.mdp, s, a), b.check_repeat_action)
-            tree.total_n[snode] += n0
-        end
-    end
+        return a, true #isnew=true
+    else
 
-    best_UCB = -Inf
-    sanode = 0
-    ltn = log(tree.total_n[snode])
-    for child in tree.children[snode]
-        n = tree.n[child]
-        q = tree.q[child]
-        c = b.exploration_constant # for clarity
-        if (ltn <= 0 && n == 0) || c == 0.0
-            UCB = q
-        else
-            UCB = q + c*sqrt(ltn/n)
+        best_UCB = -Inf
+        sanode = 0
+        ltn = log(tree.total_n[snode])
+        for child in tree.children[snode]
+            n = tree.n[child]
+            q = tree.q[child]
+            c = b.exploration_constant # for clarity
+            if (ltn <= 0 && n == 0) || c == 0.0
+                UCB = q
+            else
+                UCB = q + c*sqrt(ltn/n)
+            end
+            @assert !isnan(UCB) "UCB was NaN (q=$q, c=$c, ltn=$ltn, n=$n)"
+            @assert !isequal(UCB, -Inf)
+            if UCB > best_UCB
+                best_UCB = UCB
+                sanode = child
+            end
         end
-        @assert !isnan(UCB) "UCB was NaN (q=$q, c=$c, ltn=$ltn, n=$n)"
-        @assert !isequal(UCB, -Inf)
-        if UCB > best_UCB
-            best_UCB = UCB
-            sanode = child
-        end
+        a = tree.a_labels[sanode]
+        return a, false #isnew=false
     end
-    sanode
 end
 
 function bandit_update!(p::ModularPlanner, b::DPWBandit, snode, sanode, r, q)
