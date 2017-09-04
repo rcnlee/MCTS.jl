@@ -141,7 +141,7 @@ mutable struct ModularTree{S,A}
 
     # for tracking transitions
     n_a_children::Vector{Int}
-    unique_transitions::Set{Tuple{Int,Int}}
+    transition_rlookup::Dict{UInt64,Int}
 
 
     function ModularTree{S,A}(sz::Int=1000) where {S,A} 
@@ -158,7 +158,7 @@ mutable struct ModularTree{S,A}
                    Dict{Tuple{Int,A}, Int}(),
 
                    sizehint!(Int[], sz),
-                   Set{Tuple{Int,Int}}()
+                   Dict{UInt64,Int}() 
                   )
     end
 end

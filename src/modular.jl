@@ -109,59 +109,44 @@ function simulate(p::ModularPlanner, snode::Int, d::Int, best_path::Nullable{Bes
 
     # deterministic transition 
     sp, r = generate_sr(p.mdp, s, a, p.rng)
-    !isnull(best_path) && update!(get(best_path), s, a, r)
 
     ###
     #Experimental!! Potentially dangerous
     # check universally for simhash matches over all nodes
-    i = findfirst(s->sim_hash(s)==sim_hash(sp), tree.s_labels)
-    if i > 0
-        tup = find_first_element(x->last(x)==i, tree.unique_transitions)
-        if tup != nothing 
-            #recover the transition
-            sanode = first(tup) 
-            a = tree.a_labels[sanode]
-            spnode, r = tree.transitions[sanode][1]
-            sp = tree.s_labels[spnode]
-            isnew = false
-        end
-    end
-    ####
+    if isnew && haskey(tree.transition_rlookup, sim_hash(sp))
+        sanode = tree.transition_rlookup[sim_hash(sp)]
+        a = tree.a_labels[sanode]
+        spnode, r = tree.transitions[sanode][1]
+        sp = tree.s_labels[spnode]
+        isnew = false
+    end 
+    !isnull(best_path) && update!(get(best_path), s, a, r)
 
-    if isnew && !haskey(tree.a_lookup, (snode, a))
+    if isnew
         n0 = init_N(sol.init_N, p.mdp, s, a)
         insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, p.mdp, s, a), p.solver.bandit.check_repeat_action)
         tree.total_n[snode] += n0
-    end
-    sanode = tree.a_lookup[(snode,a)] 
+        sanode = tree.a_lookup[(snode,a)] 
+        tree.transition_rlookup[sim_hash(sp)] = sanode
 
-    new_node = false
-    spnode = sol.check_repeat_state ? get(tree.s_lookup, sp, 0) : 0
-    if spnode == 0 # there was not a state node for sp already in the tree
         spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
         push!(tree.transitions[sanode], (spnode, r))
-        new_node = true
-    end
 
-    if !sol.check_repeat_state 
         tree.n_a_children[sanode] += 1
-    elseif !((sanode,spnode) in tree.unique_transitions)
-        push!(tree.unique_transitions, (sanode,spnode))
-        tree.n_a_children[sanode] += 1
-    end
-
-    if new_node
         q = r + discount(p.mdp)*estimate_value(p.solved_estimate, p.mdp, sp, d-1, best_path)
     else
+        spnode = tree.s_lookup[sp]
+        sanode = tree.a_lookup[(snode,a)] 
+        tree.n_a_children[sanode] += 1
         q = r + discount(p.mdp)*simulate(p, spnode, d-1, best_path)
     end
-
     tree.n[sanode] += 1
     tree.total_n[snode] += 1
 
     bandit_update!(p, p.solver.bandit, snode, sanode, r, q)
 
-    return q
+    #return q
+    return maximum(tree.q[c] for c in tree.children[snode])
 end
 
 function find_first_element(f::Function, v)

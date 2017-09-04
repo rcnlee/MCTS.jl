@@ -198,8 +198,7 @@ function D3Trees.D3Tree(tree::Union{DPWTree,ModularTree}; title="MCTS-DPW Tree",
         end
     end
     for sa in 1:lensa
-        sa_trans = filter(t->first(t)==sa, tree.unique_transitions)
-        children[sa+lens] = collect(last(t) for t in sa_trans)
+        children[sa+lens] = [first(tree.transitions[sa][1])]
         text[sa+lens] = @sprintf("""
                                  %25s
                                  Q: %6.2f
