@@ -13,6 +13,8 @@ export
     MCTSPlanner,
     DPWSolver,
     DPWPlanner,
+    DSBSolver,
+    DSBPlanner,
     BeliefMCTSSolver,
     AbstractMCTSPlanner,
     AbstractMCTSSolver,
@@ -29,7 +31,9 @@ export
     init_Q,
     children,
     n_children,
-    isroot
+    isroot,
+    action_distance,
+    state_distance
 
 export
     AbstractStateNode,
@@ -46,6 +50,8 @@ include("domain_knowledge.jl")
 include("vanilla.jl")
 include("dpw_types.jl")
 include("dpw.jl")
+include("dsb_types.jl")
+include("dsb.jl")
 include("action_gen.jl")
 include("util.jl")
 include("belief_mcts.jl")
