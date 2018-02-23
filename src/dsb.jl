@@ -61,7 +61,7 @@ function POMDPs.action(p::DSBPlanner, s)
 end
 
 action_distance{S,A}(dsb::DSBPlanner, mdp::MDP{S,A}, s::S, a1::A, a2::A) = action_distance(mdp, a1, a2) 
-action_distance{S,A}(a1::A, a2::A) = norm(a1-a2, 2) 
+action_distance{S,A}(mdp::MDP{S,A}, a1::A, a2::A) = norm(a1-a2, 2) 
 state_distance{S,A}(dsb::DSBPlanner, mdp::MDP{S,A}, s::S, a::A, s1::S, s2::S) = state_distance(mdp, s1, s2) 
 state_distance{S,A}(mdp::MDP{S,A}, s1::S, s2::S) = norm(s1-s2, 2) 
 
