@@ -65,27 +65,28 @@ action_distance{S,A}(mdp::MDP{S,A}, a1::A, a2::A) = norm(a1-a2, 2)
 state_distance{S,A}(dsb::DSBPlanner, mdp::MDP{S,A}, s::S, a::A, s1::S, s2::S) = state_distance(mdp, s1, s2) 
 state_distance{S,A}(mdp::MDP{S,A}, s1::S, s2::S) = norm(s1-s2, 2) 
 
-#dsb-actions
-function is_dissimilar_action{S,A}(dsb::DSBPlanner, s::S, new_action::A, actions::Vector{A}, r::Float64)
-    for a in actions
-        d = action_distance(dsb, dsb.mdp, s, new_action, a)
-        if d <= r
-            return false
+function nearest_neighbor{S,A}(dsb::DSBPlanner, s::S, snode, a::A)
+    tree = get(dsb.tree)
+    nn,dist = nothing, Inf
+    for x in tree.children[snode]
+        d = action_distance(dsb, dsb.mdp, s, a, tree.a_labels[x])
+        if d < dist
+            nn,dist = x, d
         end
     end
-    return true
+    nn,dist
 end
-
-#dsb-states
-function is_dissimilar_state{S,A}(dsb::DSBPlanner, s::S, a::A, new_state::S, 
-                                  states::Vector{S}, r::Float64)
-    for sp in states
-        d = state_distance(dsb, dsb.mdp, s, a, new_state, sp)
-        if d <= r
-            return false
+function nearest_neighbor{S,A}(dsb::DSBPlanner, s::S, a::A, sanode, sp::S)
+    tree = get(dsb.tree)
+    nn, dist = nothing, Inf
+    for x in tree.transitions[sanode] #this is every inefficient, may contain repetitions!
+        cnode, r = x
+        d = state_distance(dsb, dsb.mdp, s, a, sp, tree.s_labels[cnode]) 
+        if d < dist
+            nn, dist = x, d
         end
     end
-    return true
+    nn,dist
 end
 
 """
@@ -105,10 +106,8 @@ function simulate(dsb::DSBPlanner, snode::Int, d::Int)
     if dsb.solver.enable_action_pw
         if length(tree.children[snode]) <= sol.k_action*tree.total_n[snode]^sol.alpha_action # criterion for new action generation
             a = next_action(dsb.next_action, dsb.mdp, s, DPWStateNode(tree, snode)) # action generation step
-            if isempty(tree.children[snode]) || is_dissimilar_action(dsb, s, a, 
-                            [tree.a_labels[c] for c in tree.children[snode]], 
-                             sol.r0_action/(tree.total_n[snode]^sol.lambda_action))
-
+            _,dist = nearest_neighbor(dsb, s, snode, a)
+            if isinf(dist) || dist > sol.r0_action/(tree.total_n[snode]^sol.lambda_action)
                 if !sol.check_repeat_action || !haskey(tree.a_lookup, (snode, a))
                     n0 = init_N(sol.init_N, dsb.mdp, s, a)
                     insert_action_node!(tree, snode, a, n0, 
@@ -116,7 +115,7 @@ function simulate(dsb::DSBPlanner, snode::Int, d::Int)
                                         sol.check_repeat_action)
                     tree.total_n[snode] += n0
                 end
-            end
+            end #else: discard
         end
     elseif isempty(tree.children[snode])
         for a in iterator(actions(dsb.mdp, s))
@@ -155,25 +154,23 @@ function simulate(dsb::DSBPlanner, snode::Int, d::Int)
     if tree.n_a_children[sanode] <= sol.k_state*tree.n[sanode]^sol.alpha_state
         sp, r = generate_sr(dsb.mdp, s, a, dsb.rng)
 
-        # dsb-state
-        if isempty(tree.transitions[sanode]) || is_dissimilar_state(dsb, s, a, sp, 
-                        [tree.s_labels[c[1]] for c in tree.transitions[sanode]],
-                         sol.r0_state/(tree.total_n[sanode]^sol.lambda_state))
-            spnode = sol.check_repeat_state ? get(tree.s_lookup, sp, 0) : 0
-
-            if spnode == 0 # there was not a state node for sp already in the tree
-                spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
-                new_node = true
-            end
-            push!(tree.transitions[sanode], (spnode, r))
-    
-            if !sol.check_repeat_state 
+        spnode = sol.check_repeat_state ? get(tree.s_lookup, sp, 0) : 0
+        prev_seen = (spnode != 0) && ((sanode,spnode) in tree.unique_transitions) #previously-seen transition
+        if !prev_seen
+            nn,dist = nearest_neighbor(dsb, s, a, sanode, sp) 
+            if isinf(dist) || (dist > sol.r0_state/(tree.total_n[sanode]^sol.lambda_state)) #different, add it
+                if spnode == 0 # there was not a state node for sp already in the tree
+                    spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
+                    new_node = true
+                end
+                sol.check_repeat_state && push!(tree.unique_transitions, (sanode,spnode))
                 tree.n_a_children[sanode] += 1
-            elseif !((sanode,spnode) in tree.unique_transitions)
-                push!(tree.unique_transitions, (sanode,spnode))
-                tree.n_a_children[sanode] += 1
+            else #similar to existing, snap to neighbor
+                spnode,r = nn 
+                sp = tree.s_labels[spnode] #for downstream use
             end
         end
+        push!(tree.transitions[sanode], (spnode, r))
     else
         spnode, r = rand(dsb.rng, tree.transitions[sanode])
     end

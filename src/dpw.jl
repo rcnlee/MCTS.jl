@@ -125,19 +125,16 @@ function simulate(dpw::DPWPlanner, snode::Int, d::Int)
         sp, r = generate_sr(dpw.mdp, s, a, dpw.rng)
 
         spnode = sol.check_repeat_state ? get(tree.s_lookup, sp, 0) : 0
-
-        if spnode == 0 # there was not a state node for sp already in the tree
-            spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
-            new_node = true
+        prev_seen = (spnode != 0) && ((sanode,spnode) in tree.unique_transitions) #previously-seen transition
+        if !prev_seen
+            if spnode == 0 # there was not a state node for sp already in the tree
+                spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
+                new_node = true
+            end
+            sol.check_repeat_state && push!(tree.unique_transitions, (sanode,spnode))
+            tree.n_a_children[sanode] += 1
         end
         push!(tree.transitions[sanode], (spnode, r))
-
-        if !sol.check_repeat_state 
-            tree.n_a_children[sanode] += 1
-        elseif !((sanode,spnode) in tree.unique_transitions)
-            push!(tree.unique_transitions, (sanode,spnode))
-            tree.n_a_children[sanode] += 1
-        end
     else
         spnode, r = rand(dpw.rng, tree.transitions[sanode])
     end
