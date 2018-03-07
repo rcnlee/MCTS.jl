@@ -23,7 +23,7 @@ function D3Trees.D3Tree(policy::MCTSPlanner, root_state; kwargs...)
     return D3Tree(policy.tree, root_state; kwargs...)
 end
 
-D3Trees.D3Tree(policy::DPWPlanner; kwargs...) = D3Tree(get(policy.tree); kwargs...)
+D3Trees.D3Tree(policy::Union{DPWPlanner,DSBPlanner,ASBPlanner}; kwargs...) = D3Tree(get(policy.tree); kwargs...)
 
 
 # Note: creating all these dictionaries is a convoluted and inefficient way to do it
@@ -157,7 +157,7 @@ function D3Trees.D3Tree(node_dict::Dict{Int, Dict{String, Any}}; title="Julia D3
                  )
 end
 
-function D3Trees.D3Tree(tree::DPWTree; title="MCTS-DPW Tree", kwargs...)
+function D3Trees.D3Tree(tree::Union{DPWTree,ASBTree}; title="MCTS-DPW Tree", kwargs...)
     lens = length(tree.total_n)
     lensa = length(tree.n)
     len = lens + lensa
