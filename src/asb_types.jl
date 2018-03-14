@@ -97,6 +97,7 @@ mutable struct ASBSolver <: AbstractMCTSSolver
     init_Q::Any
     init_N::Any
     next_action::Any
+    listener::Any
 end
 
 """
@@ -126,8 +127,9 @@ function ASBSolver(;depth::Int=10,
                     estimate_value::Any = RolloutEstimator(RandomSolver(rng)),
                     init_Q::Any = 0.0,
                     init_N::Any = 0,
-                    next_action::Any = RandomActionGenerator(rng))
-    ASBSolver(depth, exploration_constant, n_iterations, max_time, k_action, alpha_action, k_state, alpha_state, r0_action, lambda_action, r0_state, lambda_state, keep_tree, enable_action_pw, check_repeat_state, check_repeat_action, rng, estimate_value, init_Q, init_N, next_action)
+                    next_action::Any = RandomActionGenerator(rng),
+                    listener::Any=nothing)
+    ASBSolver(depth, exploration_constant, n_iterations, max_time, k_action, alpha_action, k_state, alpha_state, r0_action, lambda_action, r0_state, lambda_state, keep_tree, enable_action_pw, check_repeat_state, check_repeat_action, rng, estimate_value, init_Q, init_N, next_action, listener)
 end
 
 mutable struct ASBTree{S,A}

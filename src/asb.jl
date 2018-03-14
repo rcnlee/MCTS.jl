@@ -61,9 +61,9 @@ function POMDPs.action(p::ASBPlanner, s)
 end
 
 action_distance{S,A}(asb::ASBPlanner, mdp::MDP{S,A}, s::S, a1::A, a2::A) = action_distance(mdp, a1, a2) 
-action_distance{S,A}(mdp::MDP{S,A}, a1::A, a2::A) = norm(a1-a2, 2) 
+#action_distance{S,A}(mdp::MDP{S,A}, a1::A, a2::A) = norm(a1-a2, 2)  #duplicate
 state_distance{S,A}(asb::ASBPlanner, mdp::MDP{S,A}, s::S, a::A, s1::S, s2::S) = state_distance(mdp, s1, s2) 
-state_distance{S,A}(mdp::MDP{S,A}, s1::S, s2::S) = norm(s1-s2, 2) 
+#state_distance{S,A}(mdp::MDP{S,A}, s1::S, s2::S) = norm(s1-s2, 2)  #duplicate 
 
 function nearest_neighbor{S,A}(asb::ASBPlanner, s::S, snode, a::A)
     tree = get(asb.tree)
@@ -184,6 +184,9 @@ function simulate(asb::ASBPlanner, snode::Int, d::Int)
     else
         spnode, r = rand(asb.rng, tree.transitions[sanode])
     end
+    sp = tree.s_labels[spnode] 
+
+    notify_listener(sol.listener, asb, s, a, sp, r, snode, sanode, spnode)
 
     if new_node
         q = r + discount(asb.mdp)*estimate_value(asb.solved_estimate, asb.mdp, sp, d-1)
@@ -198,3 +201,5 @@ function simulate(asb::ASBPlanner, snode::Int, d::Int)
 
     return q
 end
+
+notify_listener(::Any, asb::ASBPlanner, s, a, sp, r, snode, sanode, spnode) = nothing

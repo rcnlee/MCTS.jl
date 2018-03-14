@@ -158,7 +158,7 @@ function simulate(dsb::DSBPlanner, snode::Int, d::Int)
         prev_seen = (spnode != 0) && ((sanode,spnode) in tree.unique_transitions) #previously-seen transition
         if !prev_seen
             nn,dist = nearest_neighbor(dsb, s, a, sanode, sp) 
-            if isinf(dist) || (dist > sol.r0_state/(tree.total_n[sanode]^sol.lambda_state)) #different, add it
+            if isinf(dist) || (dist > sol.r0_state/(tree.n[sanode]^sol.lambda_state)) #different, add it
                 if spnode == 0 # there was not a state node for sp already in the tree
                     spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
                     new_node = true
@@ -167,13 +167,15 @@ function simulate(dsb::DSBPlanner, snode::Int, d::Int)
                 tree.n_a_children[sanode] += 1
             else #similar to existing, snap to neighbor
                 spnode,r = nn 
-                sp = tree.s_labels[spnode] #for downstream use
             end
         end
         push!(tree.transitions[sanode], (spnode, r))
     else
         spnode, r = rand(dsb.rng, tree.transitions[sanode])
     end
+    sp = tree.s_labels[spnode] 
+
+    notify_listener(sol.listener, dsb, s, a, sp, r, snode, sanode, spnode)
 
     if new_node
         q = r + discount(dsb.mdp)*estimate_value(dsb.solved_estimate, dsb.mdp, sp, d-1)
@@ -188,3 +190,5 @@ function simulate(dsb::DSBPlanner, snode::Int, d::Int)
 
     return q
 end
+
+notify_listener(::Any, dsb::DSBPlanner, s, a, sp, r, snode, sanode, spnode) = nothing
