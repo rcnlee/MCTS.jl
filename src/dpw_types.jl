@@ -90,6 +90,7 @@ mutable struct DPWSolver <: AbstractMCTSSolver
     init_Q::Any
     init_N::Any
     next_action::Any
+    listeners::Dict{Symbol,Any}
 end
 
 """
@@ -113,9 +114,13 @@ function DPWSolver(;depth::Int=10,
                     estimate_value::Any = RolloutEstimator(RandomSolver(rng)),
                     init_Q::Any = 0.0,
                     init_N::Any = 0,
-                    next_action::Any = RandomActionGenerator(rng))
-    DPWSolver(depth, exploration_constant, n_iterations, max_time, k_action, alpha_action, k_state, alpha_state, keep_tree, enable_action_pw, check_repeat_state, check_repeat_action, rng, estimate_value, init_Q, init_N, next_action)
+                    next_action::Any = RandomActionGenerator(rng),
+                    listeners::Tuple=())
+    DPWSolver(depth, exploration_constant, n_iterations, max_time, k_action, alpha_action, k_state, alpha_state, keep_tree, 
+              enable_action_pw, check_repeat_state, check_repeat_action, rng, estimate_value, init_Q, init_N, next_action, 
+              Dict{Symbol,Any}(listeners))
 end
+
 
 #=
 mutable struct StateActionStateNode

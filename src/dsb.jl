@@ -43,7 +43,8 @@ function POMDPs.action(p::DSBPlanner, s)
     end
     start_us = CPUtime_us()
     for i = 1:p.solver.n_iterations
-        simulate(p, snode, p.solver.depth) # (not 100% sure we need to make a copy of the state here)
+        q = simulate(p, snode, p.solver.depth) # (not 100% sure we need to make a copy of the state here)
+        haskey(p.solver.listeners,:return) && notify_listener(p.solver.listeners[:return], p, i, q)
         if CPUtime_us() - start_us >= p.solver.max_time * 1e6
             break
         end
@@ -59,6 +60,7 @@ function POMDPs.action(p::DSBPlanner, s)
     # XXX some publications say to choose action that has been visited the most
     return tree.a_labels[sanode] # choose action with highest approximate value
 end
+
 
 action_distance{S,A}(dsb::DSBPlanner, mdp::MDP{S,A}, s::S, a1::A, a2::A) = action_distance(mdp, a1, a2) 
 action_distance{S,A}(mdp::MDP{S,A}, a1::A, a2::A) = norm(a1-a2, 2) 
@@ -174,8 +176,7 @@ function simulate(dsb::DSBPlanner, snode::Int, d::Int)
         spnode, r = rand(dsb.rng, tree.transitions[sanode])
     end
     sp = tree.s_labels[spnode] 
-
-    notify_listener(sol.listener, dsb, s, a, sp, r, snode, sanode, spnode)
+    haskey(sol.listeners,:sim) && notify_listener(sol.listeners[:sim], dsb, s, a, sp, r, snode, sanode, spnode, d)
 
     if new_node
         q = r + discount(dsb.mdp)*estimate_value(dsb.solved_estimate, dsb.mdp, sp, d-1)
@@ -191,4 +192,5 @@ function simulate(dsb::DSBPlanner, snode::Int, d::Int)
     return q
 end
 
-notify_listener(::Any, dsb::DSBPlanner, s, a, sp, r, snode, sanode, spnode) = nothing
+notify_listener(::Any, ::DSBPlanner, iter, q) = nothing
+notify_listener(::Any, ::DSBPlanner, s, a, sp, r, snode, sanode, spnode, d) = nothing

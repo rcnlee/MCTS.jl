@@ -43,7 +43,8 @@ function POMDPs.action(p::DPWPlanner, s)
     end
     start_us = CPUtime_us()
     for i = 1:p.solver.n_iterations
-        simulate(p, snode, p.solver.depth) # (not 100% sure we need to make a copy of the state here)
+        q = simulate(p, snode, p.solver.depth) # (not 100% sure we need to make a copy of the state here)
+        haskey(p.solver.listeners,:return) && notify_listener(p.solver.listeners[:return], p, i, q)
         if CPUtime_us() - start_us >= p.solver.max_time * 1e6
             break
         end
@@ -138,6 +139,8 @@ function simulate(dpw::DPWPlanner, snode::Int, d::Int)
     else
         spnode, r = rand(dpw.rng, tree.transitions[sanode])
     end
+    sp = tree.s_labels[spnode] 
+    haskey(sol.listeners,:sim) && notify_listener(sol.listeners[:sim], dpw, s, a, sp, r, snode, sanode, spnode, d)
 
     if new_node
         q = r + discount(dpw.mdp)*estimate_value(dpw.solved_estimate, dpw.mdp, sp, d-1)
@@ -152,3 +155,6 @@ function simulate(dpw::DPWPlanner, snode::Int, d::Int)
 
     return q
 end
+
+notify_listener(::Any, ::DPWPlanner, iter, q) = nothing
+notify_listener(::Any, ::DPWPlanner, s, a, sp, r, snode, sanode, spnode, d) = nothing
