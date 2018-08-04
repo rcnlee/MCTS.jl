@@ -67,12 +67,12 @@ Fields:
 
     next_action::Any
         Function or object used to choose the next action to be considered for progressive widening.
-        The next action is determined based on the MDP, the state, `s`, and the current `ASBStateNode`, `snode`.
+        The next action is determined based on the MDP, the state, `s`, and the current `RSBStateNode`, `snode`.
         If this is a function `f`, `f(mdp, s, snode)` will be called to set the value.
         If this is an object `o`, `next_action(o, mdp, s, snode)` will be called.
         default: RandomActionGenerator(rng)
 """
-mutable struct ASBSolver <: AbstractMCTSSolver
+mutable struct RSBSolver <: AbstractMCTSSolver
     depth::Int
     exploration_constant::Float64
     n_iterations::Int
@@ -96,19 +96,19 @@ mutable struct ASBSolver <: AbstractMCTSSolver
 end
 
 """
-    ASBSolver()
+    RSBSolver()
 
 Use keyword arguments to specify values for the fields
 """
-function ASBSolver(;depth::Int=10,
+function RSBSolver(;depth::Int=10,
                     exploration_constant::Float64=1.0,
                     n_iterations::Int=100,
                     max_time::Float64=Inf,
 
                     r0_action::Float64=5.0,
-                    lambda_action::Float64=0.5,
+                    lambda_action::Float64=0.8,
                     r0_state::Float64=5.0,
-                    lambda_state::Float64=0.5,
+                    lambda_state::Float64=0.8,
 
                     keep_tree::Bool=false,
                     check_repeat_state::Bool=true,
@@ -119,12 +119,12 @@ function ASBSolver(;depth::Int=10,
                     init_N::Any = 0,
                     next_action::Any = RandomActionGenerator(rng),
                     listeners::Tuple=())
-    ASBSolver(depth, exploration_constant, n_iterations, max_time, r0_action, 
+    RSBSolver(depth, exploration_constant, n_iterations, max_time, r0_action, 
               lambda_action, r0_state, lambda_state, keep_tree, check_repeat_state, check_repeat_action, 
               rng, estimate_value, init_Q, init_N, next_action, Dict{Symbol,Any}(listeners))
 end
 
-mutable struct ASBTree{S,A}
+mutable struct RSBTree{S,A}
     # for each state node
     total_n::Vector{Int}
     children::Vector{Vector{Int}}
@@ -142,9 +142,8 @@ mutable struct ASBTree{S,A}
     # for tracking transitions
     n_a_children::Vector{Int}
     unique_transitions::Set{Tuple{Int,Int}}
-    sp_radius::Dict{Tuple{Int,Int},Float64}
 
-    function ASBTree{S,A}(sz::Int=1000) where {S,A} 
+    function RSBTree{S,A}(sz::Int=1000) where {S,A} 
         sz = min(sz, 100_000)
         return new(sizehint!(Int[], sz),
                    sizehint!(Vector{Int}[], sz),
@@ -159,12 +158,11 @@ mutable struct ASBTree{S,A}
                    sizehint!(Float64[], sz),
 
                    sizehint!(Int[], sz),
-                   Set{Tuple{Int,Int}}(),
-                   Dict{Tuple{Int,Int}, Float64}()
+                   Set{Tuple{Int,Int}}()
                   )
     end
 end
-function insert_state_node!{S,A}(tree::ASBTree{S,A}, s::S, maintain_s_lookup=true)
+function insert_state_node!{S,A}(tree::RSBTree{S,A}, s::S, maintain_s_lookup=true)
     push!(tree.total_n, 0)
     push!(tree.children, Int[])
     push!(tree.s_labels, s)
@@ -174,7 +172,7 @@ function insert_state_node!{S,A}(tree::ASBTree{S,A}, s::S, maintain_s_lookup=tru
     end
     return snode
 end
-function insert_action_node!{S,A}(tree::ASBTree{S,A}, snode::Int, a::A, n0::Int, q0::Float64, 
+function insert_action_node!{S,A}(tree::RSBTree{S,A}, snode::Int, a::A, n0::Int, q0::Float64, 
                                   r0::Float64, maintain_a_lookup=true)
     push!(tree.n, n0)
     push!(tree.q, q0)
@@ -189,31 +187,31 @@ function insert_action_node!{S,A}(tree::ASBTree{S,A}, snode::Int, a::A, n0::Int,
     end
     return sanode
 end
-Base.isempty(tree::ASBTree) = isempty(tree.n) && isempty(tree.q)
+Base.isempty(tree::RSBTree) = isempty(tree.n) && isempty(tree.q)
 
-immutable ASBStateNode{S,A} <: AbstractStateNode
-    tree::ASBTree{S,A}
+immutable RSBStateNode{S,A} <: AbstractStateNode
+    tree::RSBTree{S,A}
     index::Int
 end
 
-children(n::ASBStateNode) = n.tree.children[n.index]
-n_children(n::ASBStateNode) = length(children(n))
-isroot(n::ASBStateNode) = n.index == 1
+children(n::RSBStateNode) = n.tree.children[n.index]
+n_children(n::RSBStateNode) = length(children(n))
+isroot(n::RSBStateNode) = n.index == 1
 
-mutable struct ASBPlanner{P<:Union{MDP,POMDP}, S, A, SE, NA, RNG} <: AbstractMCTSPlanner{P}
-    solver::ASBSolver
+mutable struct RSBPlanner{P<:Union{MDP,POMDP}, S, A, SE, NA, RNG} <: AbstractMCTSPlanner{P}
+    solver::RSBSolver
     mdp::P
-    tree::Nullable{ASBTree{S,A}}
+    tree::Nullable{RSBTree{S,A}}
     solved_estimate::SE
     next_action::NA
     rng::RNG
 end
 
-function ASBPlanner{S,A}(solver::ASBSolver, mdp::Union{POMDP{S,A},MDP{S,A}})
+function RSBPlanner{S,A}(solver::RSBSolver, mdp::Union{POMDP{S,A},MDP{S,A}})
     se = convert_estimator(solver.estimate_value, solver, mdp)
-    return ASBPlanner(solver,
+    return RSBPlanner(solver,
                       mdp,
-                      Nullable{ASBTree{S,A}},
+                      Nullable{RSBTree{S,A}},
                       se,
                       solver.next_action,
                       solver.rng
@@ -221,4 +219,4 @@ function ASBPlanner{S,A}(solver::ASBSolver, mdp::Union{POMDP{S,A},MDP{S,A}})
 end
 
 
-Base.srand(p::ASBPlanner, seed) = srand(p.rng, seed)
+Base.srand(p::RSBPlanner, seed) = srand(p.rng, seed)

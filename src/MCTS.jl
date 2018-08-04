@@ -17,6 +17,8 @@ export
     DSBPlanner,
     ASBSolver,
     ASBPlanner,
+    RSBSolver,
+    RSBPlanner,
     BeliefMCTSSolver,
     AbstractMCTSPlanner,
     AbstractMCTSSolver,
@@ -42,7 +44,8 @@ export
     StateActionStateNode,
     DPWStateActionNode,
     DPWStateNode,
-    ASBStateNode
+    ASBStateNode,
+    RSBStateNode
 
 abstract type AbstractMCTSPlanner{P<:Union{MDP,POMDP}} <: Policy end
 abstract type AbstractMCTSSolver <: Solver end
@@ -57,6 +60,8 @@ include("dsb_types.jl")
 include("dsb.jl")
 include("asb_types.jl")
 include("asb.jl")
+include("rsb_types.jl")
+include("rsb.jl")
 include("action_gen.jl")
 include("util.jl")
 include("belief_mcts.jl")

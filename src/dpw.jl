@@ -138,8 +138,8 @@ function simulate(dpw::DPWPlanner, snode::Int, d::Int)
         push!(tree.transitions[sanode], (spnode, r))
     else
         spnode, r = rand(dpw.rng, tree.transitions[sanode])
+        sp = tree.s_labels[spnode] 
     end
-    sp = tree.s_labels[spnode] 
     haskey(sol.listeners,:sim) && notify_listener(sol.listeners[:sim], dpw, s, a, sp, r, snode, sanode, spnode, d)
 
     if new_node

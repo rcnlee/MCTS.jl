@@ -77,10 +77,6 @@ mutable struct DSBSolver <: AbstractMCTSSolver
     exploration_constant::Float64
     n_iterations::Int
     max_time::Float64
-    k_action::Float64
-    alpha_action::Float64
-    k_state::Float64
-    alpha_state::Float64
 
     #dsb
     r0_action::Float64
@@ -89,7 +85,6 @@ mutable struct DSBSolver <: AbstractMCTSSolver
     lambda_state::Float64
 
     keep_tree::Bool
-    enable_action_pw::Bool
     check_repeat_state::Bool
     check_repeat_action::Bool
     rng::AbstractRNG
@@ -109,10 +104,6 @@ function DSBSolver(;depth::Int=10,
                     exploration_constant::Float64=1.0,
                     n_iterations::Int=100,
                     max_time::Float64=Inf,
-                    k_action::Float64=10.0,
-                    alpha_action::Float64=0.5,
-                    k_state::Float64=10.0,
-                    alpha_state::Float64=0.5,
 
                     r0_action::Float64=5.0,
                     lambda_action::Float64=0.5,
@@ -120,7 +111,6 @@ function DSBSolver(;depth::Int=10,
                     lambda_state::Float64=0.5,
 
                     keep_tree::Bool=false,
-                    enable_action_pw::Bool=true,
                     check_repeat_state::Bool=true,
                     check_repeat_action::Bool=true,
                     rng::AbstractRNG=Base.GLOBAL_RNG,
@@ -129,8 +119,8 @@ function DSBSolver(;depth::Int=10,
                     init_N::Any = 0,
                     next_action::Any = RandomActionGenerator(rng),
                     listeners::Tuple=())
-    DSBSolver(depth, exploration_constant, n_iterations, max_time, k_action, alpha_action, k_state, alpha_state, r0_action, 
-              lambda_action, r0_state, lambda_state, keep_tree, enable_action_pw, check_repeat_state, check_repeat_action, 
+    DSBSolver(depth, exploration_constant, n_iterations, max_time, r0_action, lambda_action, r0_state, 
+              lambda_state, keep_tree, check_repeat_state, check_repeat_action, 
               rng, estimate_value, init_Q, init_N, next_action, Dict{Symbol,Any}(listeners))
 end
 

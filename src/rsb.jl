@@ -1,21 +1,21 @@
-function POMDPs.solve(solver::DSBSolver, mdp::Union{POMDP,MDP})
+function POMDPs.solve(solver::RSBSolver, mdp::Union{POMDP,MDP})
     S = state_type(mdp)
     A = action_type(mdp)
     se = convert_estimator(solver.estimate_value, solver, mdp)
-    return DSBPlanner(solver, mdp, Nullable{DPWTree{S,A}}(), se, solver.next_action, solver.rng)
+    return RSBPlanner(solver, mdp, Nullable{RSBTree{S,A}}(), se, solver.next_action, solver.rng)
 end
 
 """
 Delete existing decision tree.
 """
-function clear_tree!(p::DSBPlanner)
+function clear_tree!(p::RSBPlanner)
     p.tree = Nullable()
 end
 
 """
 Call simulate and chooses the approximate best action from the reward approximations
 """
-function POMDPs.action(p::DSBPlanner, s)
+function POMDPs.action(p::RSBPlanner, s)
     if isterminal(p.mdp, s)
         error("""
               MCTS cannot handle terminal states. action was called with
@@ -26,7 +26,7 @@ function POMDPs.action(p::DSBPlanner, s)
     A = action_type(p.mdp)
     if p.solver.keep_tree
         if isnull(p.tree)
-            tree = DPWTree{S,A}(p.solver.n_iterations)
+            tree = RSBTree{S,A}(p.solver.n_iterations)
             p.tree = Nullable(tree)
         else
             tree = get(p.tree)
@@ -37,7 +37,7 @@ function POMDPs.action(p::DSBPlanner, s)
             snode = insert_state_node!(tree, s, true)
         end
     else
-        tree = DPWTree{S,A}(p.solver.n_iterations)
+        tree = RSBTree{S,A}(p.solver.n_iterations)
         p.tree = Nullable(tree)
         snode = insert_state_node!(tree, s, p.solver.check_repeat_state)
     end
@@ -61,29 +61,29 @@ function POMDPs.action(p::DSBPlanner, s)
     return tree.a_labels[sanode] # choose action with highest approximate value
 end
 
+action_distance{S,A}(rsb::RSBPlanner, mdp::MDP{S,A}, s::S, a1::A, a2::A) = action_distance(mdp, a1, a2) 
+#action_distance{S,A}(mdp::MDP{S,A}, a1::A, a2::A) = norm(a1-a2, 2)  #duplicate
+state_distance{S,A}(rsb::RSBPlanner, mdp::MDP{S,A}, s::S, a::A, s1::S, s2::S) = state_distance(mdp, s1, s2) 
+#state_distance{S,A}(mdp::MDP{S,A}, s1::S, s2::S) = norm(s1-s2, 2)  #duplicate 
 
-action_distance{S,A}(dsb::DSBPlanner, mdp::MDP{S,A}, s::S, a1::A, a2::A) = action_distance(mdp, a1, a2) 
-action_distance{S,A}(mdp::MDP{S,A}, a1::A, a2::A) = norm(a1-a2, 2) 
-state_distance{S,A}(dsb::DSBPlanner, mdp::MDP{S,A}, s::S, a::A, s1::S, s2::S) = state_distance(mdp, s1, s2) 
-state_distance{S,A}(mdp::MDP{S,A}, s1::S, s2::S) = norm(s1-s2, 2) 
-
-function nearest_neighbor{S,A}(dsb::DSBPlanner, s::S, snode, a::A)
-    tree = get(dsb.tree)
-    nn,dist = nothing, Inf
+function nearest_neighbor{S,A}(rsb::RSBPlanner, s::S, snode, a::A)
+    tree = get(rsb.tree)
+    nn, dist = nothing, Inf
     for x in tree.children[snode]
-        d = action_distance(dsb, dsb.mdp, s, a, tree.a_labels[x])
-        if d < dist
+        d = action_distance(rsb, rsb.mdp, s, a, tree.a_labels[x])
+        rad = tree.a_radius[x]
+        if d < rad && d < dist
             nn,dist = x, d
         end
     end
     nn,dist
 end
-function nearest_neighbor{S,A}(dsb::DSBPlanner, s::S, a::A, sanode, sp::S)
-    tree = get(dsb.tree)
+function nearest_neighbor{S,A}(rsb::RSBPlanner, s::S, a::A, sanode, sp::S)
+    tree = get(rsb.tree)
     nn, dist = nothing, Inf
-    for x in tree.transitions[sanode]
+    for x in tree.transitions[sanode] 
         cnode, r = x
-        d = state_distance(dsb, dsb.mdp, s, a, sp, tree.s_labels[cnode]) 
+        d = state_distance(rsb, rsb.mdp, s, a, sp, tree.s_labels[cnode]) 
         if d < dist
             nn, dist = x, d
         end
@@ -92,25 +92,30 @@ function nearest_neighbor{S,A}(dsb::DSBPlanner, s::S, a::A, sanode, sp::S)
 end
 
 """
-Return the reward for one iteration of MCTSDSB.
+Return the reward for one iteration of MCTSRSB.
 """
-function simulate(dsb::DSBPlanner, snode::Int, d::Int)
-    S = state_type(dsb.mdp)
-    A = action_type(dsb.mdp)
-    sol = dsb.solver
-    tree = get(dsb.tree)
+function simulate(rsb::RSBPlanner, snode::Int, d::Int)
+    S = state_type(rsb.mdp)
+    A = action_type(rsb.mdp)
+    sol = rsb.solver
+    tree = get(rsb.tree)
     s = tree.s_labels[snode]
-    if d == 0 || isterminal(dsb.mdp, s)
+    if d == 0 || isterminal(rsb.mdp, s)
         return 0.0
     end
 
     # action progressive widening
-    a = next_action(dsb.next_action, dsb.mdp, s, DPWStateNode(tree, snode)) # action generation step
-    _,dist = nearest_neighbor(dsb, s, snode, a)
-    if isinf(dist) || dist > sol.r0_action/(tree.total_n[snode]^sol.lambda_action)
-        if !sol.check_repeat_action || !haskey(tree.a_lookup, (snode, a))
-            n0 = init_N(sol.init_N, dsb.mdp, s, a)
-            insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, dsb.mdp, s, a), 
+    a = next_action(rsb.next_action, rsb.mdp, s, RSBStateNode(tree, snode)) # action generation step
+    if !sol.check_repeat_action || !haskey(tree.a_lookup, (snode, a))  #not an existing action
+        actions, n = tree.children[snode], tree.total_n[snode]
+        qs = tree.q[actions]
+        inds = sortperm(qs, rev=true)
+        #tree.a_radius[actions[inds]] .= sol.r0_action/n^sol.lambda_action*([(x-1) for x=1:length(actions)]./length(actions))
+        tree.a_radius[actions[inds]] .= sol.r0_action/n^sol.lambda_action*[(x-1) for x=1:length(actions)]
+        nn,dist = nearest_neighbor(rsb, s, snode, a)
+        if isinf(dist) # no neighbor, add it 
+            n0 = init_N(sol.init_N, rsb.mdp, s, a)
+            insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, rsb.mdp, s, a), sol.r0_action/n^sol.lambda_action, 
                                 sol.check_repeat_action)
             tree.total_n[snode] += n0
         end
@@ -140,12 +145,12 @@ function simulate(dsb::DSBPlanner, snode::Int, d::Int)
 
     # state progressive widening
     new_node = false
-    sp, r = generate_sr(dsb.mdp, s, a, dsb.rng)
+    sp, r = generate_sr(rsb.mdp, s, a, rsb.rng)
 
     spnode = sol.check_repeat_state ? get(tree.s_lookup, sp, 0) : 0
     prev_seen = (spnode != 0) && ((sanode,spnode) in tree.unique_transitions) #previously-seen transition
     if !prev_seen
-        nn,dist = nearest_neighbor(dsb, s, a, sanode, sp) 
+        nn,dist = nearest_neighbor(rsb, s, a, sanode, sp) 
         if isinf(dist) || (dist > sol.r0_state/(tree.n[sanode]^sol.lambda_state)) #very different, add it
             if spnode == 0 # there was not a state node for sp already in the tree
                 spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
@@ -160,13 +165,13 @@ function simulate(dsb::DSBPlanner, snode::Int, d::Int)
             spnode,r = nn 
             sp = tree.s_labels[spnode] #for downstream use
         end
-    end  #else just accept as is
-    haskey(sol.listeners,:sim) && notify_listener(sol.listeners[:sim], dsb, s, a, sp, r, snode, sanode, spnode, d)
+    end
+    haskey(sol.listeners,:sim) && notify_listener(sol.listeners[:sim], rsb, s, a, sp, r, snode, sanode, spnode, d)
 
     if new_node
-        q = r + discount(dsb.mdp)*estimate_value(dsb.solved_estimate, dsb.mdp, sp, d-1)
+        q = r + discount(rsb.mdp)*estimate_value(rsb.solved_estimate, rsb.mdp, sp, d-1)
     else
-        q = r + discount(dsb.mdp)*simulate(dsb, spnode, d-1)
+        q = r + discount(rsb.mdp)*simulate(rsb, spnode, d-1)
     end
 
     tree.n[sanode] += 1
@@ -176,5 +181,5 @@ function simulate(dsb::DSBPlanner, snode::Int, d::Int)
     return q
 end
 
-notify_listener(::Any, ::DSBPlanner, iter, q) = nothing
-notify_listener(::Any, ::DSBPlanner, s, a, sp, r, snode, sanode, spnode, d) = nothing
+notify_listener(::Any, ::RSBPlanner, iter, q) = nothing
+notify_listener(::Any, ::RSBPlanner, s, a, sp, r, snode, sanode, spnode, d) = nothing

@@ -106,33 +106,18 @@ function simulate(asb::ASBPlanner, snode::Int, d::Int)
     end
 
     # action progressive widening
-    if asb.solver.enable_action_pw
-        if length(tree.children[snode]) <= sol.k_action*tree.total_n[snode]^sol.alpha_action # criterion for new action generation
-            a = next_action(asb.next_action, asb.mdp, s, ASBStateNode(tree, snode)) # action generation step
-            if !sol.check_repeat_action || !haskey(tree.a_lookup, (snode, a))
-                nn,dist = nearest_neighbor(asb, s, snode, a)
-                if !isinf(dist)  #has neighbor
-                    tree.a_radius[nn] *= sol.lambda_action #shrink ball
-                else
-                    n0 = init_N(sol.init_N, asb.mdp, s, a)
-                    insert_action_node!(tree, snode, a, n0, 
-                                        init_Q(sol.init_Q, asb.mdp, s, a), 
-                                        sol.r0_action,
-                                        sol.check_repeat_action)
-                    tree.total_n[snode] += n0
-                end
-            end #else: discard
-        end
-    elseif isempty(tree.children[snode])
-        for a in iterator(actions(asb.mdp, s))
+    a = next_action(asb.next_action, asb.mdp, s, ASBStateNode(tree, snode)) # action generation step
+    if !sol.check_repeat_action || !haskey(tree.a_lookup, (snode, a))
+        nn,dist = nearest_neighbor(asb, s, snode, a)
+        if !isinf(dist)  #has neighbor
+            tree.a_radius[nn] *= sol.lambda_action #shrink ball
+        else
             n0 = init_N(sol.init_N, asb.mdp, s, a)
-            insert_action_node!(tree, snode, a, n0,
-                                init_Q(sol.init_Q, asb.mdp, s, a),
-                                sol.r0_action,
-                                false)
+            insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, asb.mdp, s, a), sol.r0_action, 
+                                sol.check_repeat_action)
             tree.total_n[snode] += n0
         end
-    end
+    end #else: discard
 
     best_UCB = -Inf
     sanode = 0
@@ -158,35 +143,29 @@ function simulate(asb::ASBPlanner, snode::Int, d::Int)
 
     # state progressive widening
     new_node = false
-    if tree.n_a_children[sanode] <= sol.k_state*tree.n[sanode]^sol.alpha_state
-        sp, r = generate_sr(asb.mdp, s, a, asb.rng)
+    sp, r = generate_sr(asb.mdp, s, a, asb.rng)
 
-        spnode = sol.check_repeat_state ? get(tree.s_lookup, sp, 0) : 0
-        prev_seen = (spnode != 0) && ((sanode,spnode) in tree.unique_transitions) #previously-seen transition
-        if !prev_seen
-            nn,dist = nearest_neighbor(asb, s, a, sanode, sp) 
-            if !isinf(dist) #similar to existing, snap to neighbor
-                spnode,r = nn 
-                sp = tree.s_labels[spnode] #for downstream use
-                tree.sp_radius[(sanode,spnode)] *= sol.lambda_state
-            else
-                if spnode == 0 # there was not a state node for sp already in the tree
-                    spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
-                    new_node = true
-                end
-                if sol.check_repeat_state
-                    push!(tree.unique_transitions, (sanode,spnode))
-                    tree.sp_radius[(sanode,spnode)] = sol.r0_state
-                end
-                tree.n_a_children[sanode] += 1
+    spnode = sol.check_repeat_state ? get(tree.s_lookup, sp, 0) : 0
+    prev_seen = (spnode != 0) && ((sanode,spnode) in tree.unique_transitions) #previously-seen transition
+    if !prev_seen
+        nn,dist = nearest_neighbor(asb, s, a, sanode, sp) 
+        if isinf(dist) #no nearest neighbor
+            if spnode == 0 # there was not a state node for sp already in the tree
+                spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
+                new_node = true
             end
+            if sol.check_repeat_state
+                push!(tree.unique_transitions, (sanode,spnode))
+                push!(tree.transitions[sanode], (spnode, r)) #consider consolidating transitions and unique_transitions
+                tree.sp_radius[(sanode,spnode)] = sol.r0_state
+            end
+            tree.n_a_children[sanode] += 1
+        else #similar to existing, snap to neighbor
+            spnode,r = nn 
+            sp = tree.s_labels[spnode] #for downstream use
+            tree.sp_radius[(sanode,spnode)] *= sol.lambda_state
         end
-        push!(tree.transitions[sanode], (spnode, r))
-    else
-        spnode, r = rand(asb.rng, tree.transitions[sanode])
     end
-    sp = tree.s_labels[spnode] 
-
     haskey(sol.listeners,:sim) && notify_listener(sol.listeners[:sim], asb, s, a, sp, r, snode, sanode, spnode, d)
 
     if new_node
@@ -197,7 +176,6 @@ function simulate(asb::ASBPlanner, snode::Int, d::Int)
 
     tree.n[sanode] += 1
     tree.total_n[snode] += 1
-
     tree.q[sanode] += (q - tree.q[sanode])/tree.n[sanode]
 
     return q
