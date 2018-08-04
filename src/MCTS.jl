@@ -13,6 +13,8 @@ export
     MCTSPlanner,
     DPWSolver,
     DPWPlanner,
+    ModularSolver,
+    ModularPlanner,
     BeliefMCTSSolver,
     AbstractMCTSPlanner,
     AbstractMCTSSolver,
@@ -38,9 +40,15 @@ export
     StateActionStateNode,
     DPWStateActionNode,
     DPWStateNode,
+    ModularStateActionNode,
+    ModularStateNode,
 
     ExceptionRethrow,
     ReportWhenUsed
+
+export
+    ModularBandit,
+    DPWBandit
 
 abstract type AbstractMCTSPlanner{P<:Union{MDP,POMDP}} <: Policy end
 abstract type AbstractMCTSSolver <: Solver end
@@ -51,6 +59,8 @@ include("domain_knowledge.jl")
 include("vanilla.jl")
 include("dpw_types.jl")
 include("dpw.jl")
+include("modular_types.jl")
+include("modular.jl")
 include("action_gen.jl")
 include("util.jl")
 include("default_action.jl")
