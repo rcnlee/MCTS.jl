@@ -41,6 +41,10 @@ Fields:
         When constructing the tree, check whether a state or action has been seen before (there is a computational cost to maintaining the dictionaries necessary for this)
         default: true
 
+    tree_in_info::Bool:
+        If true, return the tree in the info dict when action_info is called. False by default because it can use a lot of memory if histories are being saved.
+        default: false
+
     rng::AbstractRNG:
         Random number generator
 
@@ -71,6 +75,13 @@ Fields:
         If this is a function `f`, `f(mdp, s, snode)` will be called to set the value.
         If this is an object `o`, `next_action(o, mdp, s, snode)` will be called.
         default: RandomActionGenerator(rng)
+
+    default_action::Any
+        Function, action, or Policy used to determine the action if POMCP fails with exception `ex`.
+        If this is a Function `f`, `f(pomdp, belief, ex)` will be called.
+        If this is a Policy `p`, `action(p, belief)` will be called.
+        If it is an object `a`, `default_action(a, pomdp, belief, ex)` will be called, and if this method is not implemented, `a` will be returned directly.
+        default: `ExceptionRethrow()`
 """
 mutable struct DPWSolver <: AbstractMCTSSolver
     depth::Int
@@ -85,11 +96,13 @@ mutable struct DPWSolver <: AbstractMCTSSolver
     enable_action_pw::Bool
     check_repeat_state::Bool
     check_repeat_action::Bool
+    tree_in_info::Bool
     rng::AbstractRNG
     estimate_value::Any
     init_Q::Any
     init_N::Any
     next_action::Any
+    default_action::Any
 end
 
 """
@@ -109,12 +122,15 @@ function DPWSolver(;depth::Int=10,
                     enable_action_pw::Bool=true,
                     check_repeat_state::Bool=true,
                     check_repeat_action::Bool=true,
+                    tree_in_info::Bool=false,
                     rng::AbstractRNG=Base.GLOBAL_RNG,
                     estimate_value::Any = RolloutEstimator(RandomSolver(rng)),
                     init_Q::Any = 0.0,
                     init_N::Any = 0,
-                    next_action::Any = RandomActionGenerator(rng))
-    DPWSolver(depth, exploration_constant, n_iterations, max_time, k_action, alpha_action, k_state, alpha_state, keep_tree, enable_action_pw, check_repeat_state, check_repeat_action, rng, estimate_value, init_Q, init_N, next_action)
+                    next_action::Any = RandomActionGenerator(rng),
+                    default_action::Any = ExceptionRethrow()
+                   )
+    DPWSolver(depth, exploration_constant, n_iterations, max_time, k_action, alpha_action, k_state, alpha_state, keep_tree, enable_action_pw, check_repeat_state, check_repeat_action, tree_in_info, rng, estimate_value, init_Q, init_N, next_action, default_action)
 end
 
 #=
