@@ -18,33 +18,30 @@ mutable struct DPWBandit <: ModularBandit
     end
 end
 
-function bandit_action(p::ModularPlanner, b::DPWBandit, s)
+function bandit_action(p::ModularPlanner, b::DPWBandit, snode)
 
-    S = state_type(p.mdp)
-    A = action_type(p.mdp)
     sol = p.solver
     tree = get(p.tree)
-    snode = tree.s_lookup[s]
+    s = tree.s_labels[snode]
+    
+    # for clarity
+    n, N = length(tree.children[snode]), tree.total_n[snode]
+    k, α = b.k_action, b.alpha_action
 
     # action progressive widening
     if b.enable_action_pw
-        if length(tree.children[snode]) <= b.k_action*tree.total_n[snode]^b.alpha_action # criterion for new action generation
+        if n ≤ k*N^α  # criterion for new action generation
             a = next_action(p.next_action, p.mdp, s, ModularStateNode(tree, snode)) # action generation step
             if !b.check_repeat_action || !haskey(tree.a_lookup, (snode, a))
                 n0 = init_N(sol.init_N, p.mdp, s, a)
-                insert_action_node!(tree, snode, a, n0,
-                                    init_Q(sol.init_Q, p.mdp, s, a),
-                                    b.check_repeat_action
-                                   )
+                insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, p.mdp, s, a), b.check_repeat_action)
                 tree.total_n[snode] += n0
             end
         end
     elseif isempty(tree.children[snode])
         for a in iterator(actions(p.mdp, s))
             n0 = init_N(sol.init_N, p.mdp, s, a)
-            insert_action_node!(tree, snode, a, n0,
-                                init_Q(sol.init_Q, p.mdp, s, a),
-                                false)
+            insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, p.mdp, s, a), false)
             tree.total_n[snode] += n0
         end
     end
@@ -68,8 +65,7 @@ function bandit_action(p::ModularPlanner, b::DPWBandit, s)
             sanode = child
         end
     end
-    a = tree.a_labels[sanode]
-    a
+    sanode
 end
 
 function bandit_update!(p::ModularPlanner, b::DPWBandit, s, a, r)

@@ -101,6 +101,7 @@ mutable struct ModularSolver <: AbstractMCTSSolver
     init_N::Any
     next_action::Any
     default_action::Any
+    track_best_path::Bool
 end
 
 """
@@ -119,12 +120,13 @@ function ModularSolver(;depth::Int=10,
                     tree_in_info::Bool=false,
                     rng::AbstractRNG=Base.GLOBAL_RNG,
                     estimate_value::Any = RolloutEstimator(RandomSolver(rng)),
-                    init_Q::Any = 0.0,
-                    init_N::Any = 0,
-                    next_action::Any = RandomActionGenerator(rng),
-                    default_action::Any = ExceptionRethrow()
+                    init_Q::Any=0.0,
+                    init_N::Any=0,
+                    next_action::Any=RandomActionGenerator(rng),
+                    default_action::Any=ExceptionRethrow(),
+                    track_best_path::Bool=false
                    )
-    ModularSolver(depth, n_iterations, max_time, bandit, k_state, alpha_state, keep_tree, check_repeat_state, tree_in_info, rng, estimate_value, init_Q, init_N, next_action, default_action)
+    ModularSolver(depth, n_iterations, max_time, bandit, k_state, alpha_state, keep_tree, check_repeat_state, tree_in_info, rng, estimate_value, init_Q, init_N, next_action, default_action, track_best_path)
 end
 
 mutable struct ModularTree{S,A}
@@ -224,3 +226,4 @@ end
 Base.srand(p::ModularPlanner, seed) = srand(p.rng, seed)
 
 include("modules/DPWBandit.jl")
+include("bestpathtracker.jl")
