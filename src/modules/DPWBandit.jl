@@ -17,6 +17,7 @@ mutable struct DPWBandit <: ModularBandit
         new(exploration_constant, k_action, alpha_action, enable_action_pw, check_repeat_action)
     end
 end
+Base.string(::Type{DPWBandit}) = "DPWBandit"
 
 function bandit_action(p::ModularPlanner, b::DPWBandit, snode)
 
@@ -68,10 +69,8 @@ function bandit_action(p::ModularPlanner, b::DPWBandit, snode)
     sanode
 end
 
-function bandit_update!(p::ModularPlanner, b::DPWBandit, s, a, r)
+function bandit_update!(p::ModularPlanner, b::DPWBandit, sanode, r)
     tree = get(p.tree)
-    snode = tree.s_lookup[s]
-    sanode = tree.a_lookup[(snode,a)]
     tree.q[sanode] += (r - tree.q[sanode])/tree.n[sanode]
     nothing
 end
