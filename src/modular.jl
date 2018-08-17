@@ -139,7 +139,7 @@ function simulate(p::ModularPlanner, snode::Int, d::Int, best_path::Nullable{Bes
     tree.n[sanode] += 1
     tree.total_n[snode] += 1
 
-    bandit_update!(p, p.solver.bandit, sanode, q)
+    bandit_update!(p, p.solver.bandit, snode, sanode, r, q)
 
     return q
 end

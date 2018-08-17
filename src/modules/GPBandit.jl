@@ -1,9 +1,10 @@
+using GaussianProcesses
 
-mutable struct RandomBandit <: ModularBandit 
+mutable struct GPBandit <: ModularBandit 
     enable_action_pw::Bool
     check_repeat_action::Bool
 
-    function RandomBandit(; 
+    function GPBandit(; 
                     enable_action_pw::Bool=true,
                     check_repeat_action::Bool=true
                     )
@@ -11,15 +12,17 @@ mutable struct RandomBandit <: ModularBandit
         new(enable_action_pw, check_repeat_action)
     end
 end
-Base.string(::Type{RandomBandit}) = "RandomBandit"
+Base.string(::Type{GPBandit}) = "GPBandit"
 
-function bandit_action(p::ModularPlanner, b::RandomBandit, snode)
+function bandit_action(p::ModularPlanner, b::GPBandit, snode)
 
-    b.enable_action_pw || error("enable_action_pw=false is not supported by RandomBandit")
+    b.enable_action_pw || error("enable_action_pw=false is not supported by GPBandit")
 
     sol = p.solver
     tree = get(p.tree)
     s = tree.s_labels[snode]
+
+    snode > length(b.gps) && resize!(b.gps, snode) #extend if it doesn't exist
 
     a = next_action(p.next_action, p.mdp, s, ModularStateNode(tree, snode)) # action generation step
     if !b.check_repeat_action || !haskey(tree.a_lookup, (snode, a))
@@ -32,7 +35,7 @@ function bandit_action(p::ModularPlanner, b::RandomBandit, snode)
     sanode
 end
 
-function bandit_update!(p::ModularPlanner, b::RandomBandit, sanode, r)
+function bandit_update!(p::ModularPlanner, b::GPBandit, sanode, r)
     tree = get(p.tree)
     tree.q[sanode] += (r - tree.q[sanode])/tree.n[sanode]
     nothing

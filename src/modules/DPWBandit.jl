@@ -69,8 +69,8 @@ function bandit_action(p::ModularPlanner, b::DPWBandit, snode)
     sanode
 end
 
-function bandit_update!(p::ModularPlanner, b::DPWBandit, sanode, r)
+function bandit_update!(p::ModularPlanner, b::DPWBandit, snode, sanode, r, q)
     tree = get(p.tree)
-    tree.q[sanode] += (r - tree.q[sanode])/tree.n[sanode]
+    tree.q[sanode] += (q - tree.q[sanode])/tree.n[sanode]
     nothing
 end

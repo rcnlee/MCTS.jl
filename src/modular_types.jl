@@ -227,4 +227,6 @@ Base.srand(p::ModularPlanner, seed) = srand(p.rng, seed)
 
 include("modules/DPWBandit.jl")
 include("modules/RandomBandit.jl")
+#include("modules/GPBandit.jl")
+include("modules/CBTSBandit.jl")
 include("bestpathtracker.jl")

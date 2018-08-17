@@ -49,7 +49,8 @@ export
 export
     ModularBandit,
     DPWBandit,
-    RandomBandit
+    RandomBandit,
+    CBTSBandit
 
 abstract type AbstractMCTSPlanner{P<:Union{MDP,POMDP}} <: Policy end
 abstract type AbstractMCTSSolver <: Solver end
