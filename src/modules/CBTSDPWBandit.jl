@@ -73,6 +73,7 @@ function bandit_action(p::ModularPlanner, b::CBTSDPWBandit, snode)
             ucbmax,imax = findmax(m + ucb)  #do I need random tie-breaking?
 
             a = b.action_dims==1 ? test_points[imax] : test_points[:,imax]
+            a = convert(action_type(p.mdp), a)  #convert back to native type
             a
         end
     

@@ -1,14 +1,17 @@
+using Observers
 
 mutable struct RandomBandit <: ModularBandit 
     enable_action_pw::Bool
     check_repeat_action::Bool
+    observer::Union{Observer,Void}
 
     function RandomBandit(; 
                     enable_action_pw::Bool=true,
-                    check_repeat_action::Bool=true
+                    check_repeat_action::Bool=true,
+                    observer::Union{Observer,Void}=nothing
                     )
 
-        new(enable_action_pw, check_repeat_action)
+        new(enable_action_pw, check_repeat_action, observer)
     end
 end
 Base.string(::Type{RandomBandit}) = "RandomBandit"
@@ -35,5 +38,8 @@ end
 function bandit_update!(p::ModularPlanner, b::RandomBandit, snode, sanode, r, q)
     tree = get(p.tree)
     tree.q[sanode] += (q - tree.q[sanode])/tree.n[sanode]
+
+    notify_observer!(b.observer, b; planner=p, snode=snode, sanode=sanode, r=r, q=q)
+
     nothing
 end
