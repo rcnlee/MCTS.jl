@@ -1,25 +1,25 @@
 using GaussianProcesses
 using Observers
 
-mutable struct CBTSBandit <: ModularBandit 
+mutable struct CBTSDPWBandit <: ModularBandit 
     enable_action_pw::Bool
     check_repeat_action::Bool
     exploration_constant::Float64
-    A_max::Int
+    k_action::Float64
+    alpha_action::Float64
     n_proposes::Int
     n_sig::Float64
     fit_qs::Bool  #true=fit qs, false=fit rs
     action_dims::Int
     gp::GPE
-    Xs::Vector{Matrix{Float64}}
-    ys::Vector{Vector{Float64}}
     observer::Union{Observer,Void}
 
-    function CBTSBandit(; 
+    function CBTSDPWBandit(; 
                     enable_action_pw::Bool=true,
                     check_repeat_action::Bool=true,
                     exploration_constant::Float64=1.0,
-                    A_max::Int=20,
+                    k_action::Float64=10.0,
+                    alpha_action::Float64=0.5,
                     n_proposes::Int=50,
                     log_length_scale::Float64=0.0,
                     log_signal_sigma::Float64=0.0,
@@ -33,35 +33,33 @@ mutable struct CBTSBandit <: ModularBandit
         mean_func = MeanZero()
         kern = SE(log_length_scale, log_signal_sigma)
         gp = GP(Array{Float64,2}(action_dims,0), Float64[], mean_func, kern, log_obs_noise) 
-        Xs = Matrix{Float64}[]
-        ys = Vector{Float64}[]
-        new(enable_action_pw, check_repeat_action, exploration_constant, A_max, n_proposes, n_sig, fit_qs, action_dims, gp, Xs, ys, observer)
+        new(enable_action_pw, check_repeat_action, exploration_constant, k_action, alpha_action, n_proposes, n_sig, fit_qs, action_dims, gp, observer)
     end
 end
-Base.string(::Type{CBTSBandit}) = "CBTSBandit"
+Base.string(::Type{CBTSDPWBandit}) = "CBTSDPWBandit"
 
-function bandit_action(p::ModularPlanner, b::CBTSBandit, snode)
+function bandit_action(p::ModularPlanner, b::CBTSDPWBandit, snode)
 
-    b.enable_action_pw || error("enable_action_pw=false is not supported by CBTSBandit")
+    b.enable_action_pw || error("enable_action_pw=false is not supported by CBTSDPWBandit")
 
     sol = p.solver
     tree = get(p.tree)
     s = tree.s_labels[snode]
 
-    sanode = if length(tree.children[snode]) < b.A_max
-        #Bayesian optimization
+    # for clarity
+    n, N = length(tree.children[snode]), tree.total_n[snode]
+    k, α = b.k_action, b.alpha_action
 
-        a = if !isassigned(b.Xs,snode) #isempty(tree.children[snode])
+    sanode = if n ≤ k*N^α  # criterion for new action generation
+        #Generate action using Bayesian optimization
+
+        a = if isempty(tree.children[snode]) #don't bother fitting if no existing children
             a = next_action(p.next_action, p.mdp, s, ModularStateNode(tree, snode)) 
             a
         else
             #fit to q's
-            #X = hcat((tree.a_labels[i] for i in tree.children[snode])...)
-            #y = [tree.q[i] for i in tree.children[snode]]
-
-            #fit to r's
-            X = b.Xs[snode]
-            y = b.ys[snode]
+            X = hcat((tree.a_labels[i] for i in tree.children[snode])...)
+            y = [tree.q[i] for i in tree.children[snode]]
 
             GaussianProcesses.fit!(b.gp, X, y)  #fit using existing actions
 
@@ -72,7 +70,7 @@ function bandit_action(p::ModularPlanner, b::CBTSBandit, snode)
             #test and pick the best action
             m, Σ = predict_f(b.gp, test_points)
             ucb = b.n_sig*sqrt.(Σ)
-            ucbmax,imax = findmax(m + ucb)
+            ucbmax,imax = findmax(m + ucb)  #do I need random tie-breaking?
 
             a = b.action_dims==1 ? test_points[imax] : test_points[:,imax]
             a
@@ -112,26 +110,11 @@ function bandit_action(p::ModularPlanner, b::CBTSBandit, snode)
     return sanode
 end
 
-function bandit_update!(p::ModularPlanner, b::CBTSBandit, snode, sanode, r, q)
+function bandit_update!(p::ModularPlanner, b::CBTSDPWBandit, snode, sanode, r, q)
     tree = get(p.tree)
     tree.q[sanode] += (q - tree.q[sanode])/tree.n[sanode]
-    #resize if too small
-    length(b.Xs) < snode && resize!(b.Xs, snode)
-    length(b.ys) < snode && resize!(b.ys, snode)
-
-    a = tree.a_labels[sanode]
-    b.Xs[snode] = isassigned(b.Xs,snode) ? hcat(b.Xs[snode], to_vec(a)) : matrix(a) 
-    isassigned(b.ys,snode) || (b.ys[snode] = Float64[])
-
-    y = b.fit_qs ? q : r
-    push!(b.ys[snode], y)
 
     notify_observer!(b.observer, b; planner=p, snode=snode, sanode=sanode, r=r, q=q)
 
     nothing
 end
-
-to_vec(x::Float64) = [x]
-matrix(x::Float64) = [x][:,:]
-to_vec(x) = convert(Vector{Float64},x)
-matrix(x) = convert(Vector{Float64},x)[:,:]

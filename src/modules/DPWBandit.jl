@@ -21,6 +21,8 @@ Base.string(::Type{DPWBandit}) = "DPWBandit"
 
 function bandit_action(p::ModularPlanner, b::DPWBandit, snode)
 
+    b.enable_action_pw || error("enable_action_pw=false is not supported by DPWBandit")
+
     sol = p.solver
     tree = get(p.tree)
     s = tree.s_labels[snode]
@@ -30,19 +32,11 @@ function bandit_action(p::ModularPlanner, b::DPWBandit, snode)
     k, α = b.k_action, b.alpha_action
 
     # action progressive widening
-    if b.enable_action_pw
-        if n ≤ k*N^α  # criterion for new action generation
-            a = next_action(p.next_action, p.mdp, s, ModularStateNode(tree, snode)) # action generation step
-            if !b.check_repeat_action || !haskey(tree.a_lookup, (snode, a))
-                n0 = init_N(sol.init_N, p.mdp, s, a)
-                insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, p.mdp, s, a), b.check_repeat_action)
-                tree.total_n[snode] += n0
-            end
-        end
-    elseif isempty(tree.children[snode])
-        for a in iterator(actions(p.mdp, s))
+    if n ≤ k*N^α  # criterion for new action generation
+        a = next_action(p.next_action, p.mdp, s, ModularStateNode(tree, snode)) # action generation step
+        if !b.check_repeat_action || !haskey(tree.a_lookup, (snode, a))
             n0 = init_N(sol.init_N, p.mdp, s, a)
-            insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, p.mdp, s, a), false)
+            insert_action_node!(tree, snode, a, n0, init_Q(sol.init_Q, p.mdp, s, a), b.check_repeat_action)
             tree.total_n[snode] += n0
         end
     end
