@@ -7,18 +7,20 @@ mutable struct BestPathTracker
     best_states::Vector
     best_actions::Vector
     best_r_total::Float64
+    best_rtotal_hist::Vector
     cur_states::Vector
     cur_actions::Vector
     cur_r_total::Float64
     discount::Float64
     cur_discount::Float64
 
-    BestPathTracker(; discount::Float64=1.0) = new([], [], -Inf, [], [], 0.0, discount, 1.0)
+    BestPathTracker(; discount::Float64=1.0) = new([], [], -Inf, [], [], [], 0.0, discount, 1.0)
 end
 
 function reset_best!(t::BestPathTracker)
     empty!(t.best_states)
     empty!(t.best_actions)
+    empty!(t.best_rtotal_hist)
     t.best_r_total = -Inf
     t
 end
@@ -42,9 +44,10 @@ function update!(t::BestPathTracker, s, a, r::Float64)
     t
 end
 
-function complete_current_path!(t::BestPathTracker)
+function complete_current_path!(t::BestPathTracker, n::Int)
     if t.cur_r_total > t.best_r_total
         t.best_r_total = t.cur_r_total
+        push!(t.best_rtotal_hist, (n, t.best_r_total))
         resize_copy!(t.best_states, t.cur_states)
         resize_copy!(t.best_actions, t.cur_actions)
     end

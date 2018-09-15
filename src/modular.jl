@@ -56,7 +56,7 @@ function POMDPToolbox.action_info(p::ModularPlanner, s; tree_in_info=false)
         best_path = p.solver.track_best_path ? Nullable{BestPathTracker}(BestPathTracker()) : Nullable{BestPathTracker}() 
         for i = 1:p.solver.n_iterations
             simulate(p, snode, p.solver.depth, best_path) 
-            !isnull(best_path) && complete_current_path!(get(best_path))
+            !isnull(best_path) && complete_current_path!(get(best_path), i)
 
             if CPUtime_us() - start_us >= p.solver.max_time * 1e6
                 break
